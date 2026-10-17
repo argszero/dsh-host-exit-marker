@@ -1,0 +1,70 @@
+{
+  "name": "@argszero/dsh-host-exit-marker",
+  "description": "Leave a record when a dsh host process dies. Discussion #10022 reports that from the outside a crash, a quit and a silent SIGTERM are indistinguishable: the desktop shell kills the host with SIGTERM (apps/desktop/src/host-process.ts:209, :296), profile-boot turns that into a quiet exit(0) (apps/cli/src/profile-boot.ts:307), SIGHUP is not registered at all (default terminate, equally silent), and nothing writes either one down — no crash log, no DiagnosticReport, no persistent stderr. This plugin records a line per configured signal before anything else in the process reacts (prependListener, SIGTERM/SIGINT/SIGHUP by default) and, crucially, restores the default action it displaced: Node drops a signal's default behaviour as soon as it has a listener, so a plugin that only listened would quietly turn SIGHUP from 'terminate' into 'ignore' — instead, when nothing else would act on the signal, the plugin re-raises it against itself and the process dies exactly as before, one signal=SIGHUP line richer. It also keeps one liveness record per running instance under hosts/, refreshed by an unref'd heartbeat, so the NEXT boot can report any record whose process is gone as died-without-exit with its start time and when it was last seen alive — the only trace a SIGKILL, a native crash or a lost machine can leave, because no handler ever runs for those. It records unmount on disposal and exit with the status when the process ends with the plugin mounted. It changes no exit status, no shutdown path, no fatal policy and no other listener, cannot make a silent exit loud on stderr (a host decision, not a plugin one), and does not address #10022's second defect (warning-class plugin errors held only in a 64 KB in-memory ring), which is a host-logging surface rather than a process one. Zero runtime dependencies.",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/argszero/dsh-host-exit-marker.git"
+  },
+  "homepage": "https://github.com/argszero/dsh-host-exit-marker#readme",
+  "bugs": {
+    "url": "https://github.com/argszero/dsh-host-exit-marker/issues"
+  },
+  "keywords": [
+    "cordis",
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "host",
+    "process",
+    "signal",
+    "sigterm",
+    "sighup",
+    "crash",
+    "observability",
+    "diagnostics"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2 || ~4.0.5-alpha.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5-alpha.1",
+    "@types/node": "^24.19.1",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "pretest": "tsc",
+    "test": "node --test \"test/*.spec.mjs\"",
+    "prepublishOnly": "tsc"
+  },
+  "engines": {
+    "node": "^22.19 || >=24"
+  }
+}

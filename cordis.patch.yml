@@ -1,0 +1,32 @@
+# The @argszero/dsh-host-exit-marker bundle patch: mount and go.
+#
+# Discussion #10022 reports that from the outside, a dsh host's death is
+# indistinguishable from a clean stop and, in either case, unrecorded. The
+# desktop shell kills the host with SIGTERM on quit and on invalid IPC
+# (apps/desktop/src/host-process.ts:209, :296); apps/cli turns that into a quiet
+# exit(0) (apps/cli/src/profile-boot.ts:307-308) while SIGHUP is not registered
+# at all, so it default-terminates — silently. Nothing writes any of it down.
+#
+# This patch mounts a marker that appends one line per signal to
+# <dsh home>/logs/host-exit.log before anything else in the process reacts, and
+# restores the default action it displaced: Node drops a signal's default
+# behaviour as soon as the signal has a listener, so a plugin that only listened
+# would turn SIGHUP from "terminate" into "ignore" and leave the host running.
+# The plugin also keeps one liveness record per instance under logs/hosts/, so
+# the next boot can report a process that died without ever reaching a handler —
+# a SIGKILL, a native crash, a lost machine — which is the only trace those
+# deaths can leave.
+#
+# It changes no exit status, no shutdown path and no other listener: the vendor
+# handlers still run, in the same order. Everything is configurable and every
+# field is defaulted, so this entry alone is a complete mount; add a `config:`
+# block only to override `dir`, `signals`, `heartbeatMs` or `log`.
+#
+# No `inject` is declared: process and the filesystem are not cordis services,
+# so there is nothing to wait for and the marker is in force from the moment the
+# fiber activates — including the startup window in which profile-boot has
+# already armed its own signal handlers.
+
+- insert:
+    - id: host-exit-marker
+      name: '@argszero/dsh-host-exit-marker'
